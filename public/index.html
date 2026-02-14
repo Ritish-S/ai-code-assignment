@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Coding Assignment Evaluator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <header class="text-center mb-5">
+            <h1 class="display-4">AI Coding Assignment Evaluator</h1>
+        </header>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="codeTextarea" class="form-label">Paste your code here:</label>
+                            <textarea class="form-control" id="codeTextarea" rows="10" placeholder="Enter code..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="fileInput" class="form-label">Or upload a code file:</label>
+                            <input type="file" class="form-control" id="fileInput" accept=".java,.py,.cpp,.js,.txt" onchange="loadFile()">
+                        </div>
+                        <div class="mb-3">
+                            <label for="languageSelect" class="form-label">Select Programming Language:</label>
+                            <select class="form-select" id="languageSelect">
+                                <option value="Java">Java</option>
+                                <option value="Python">Python</option>
+                                <option value="C++">C++</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary w-100" id="evaluateBtn" onclick="evaluateCode()">Evaluate Code</button>
+                    </div>
+                </div>
+
+                <div id="results" class="mt-4" style="display: none;">
+                    <div class="card shadow">
+                        <div class="card-body">
+                            <h3 class="card-title">Evaluation Result</h3>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h4>Overall Score</h4>
+                                    <p class="h1 text-primary" id="overallScore"></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <h4>Metrics</h4>
+                                    <ul class="list-group">
+                                        <li class="list-group-item" id="readability"></li>
+                                        <li class="list-group-item" id="timeEfficiency"></li>
+                                        <li class="list-group-item" id="designQuality"></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <h4>Strengths</h4>
+                                    <ul class="list-group" id="strengths"></ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h4>Improvements</h4>
+                                    <ul class="list-group" id="improvements"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="error" class="mt-4" style="display: none;">
+                    <div class="card shadow border-danger">
+                        <div class="card-body">
+                            <h3 class="card-title text-danger">Error</h3>
+                            <p id="errorMsg" class="text-danger"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function loadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('codeTextarea').value = e.target.result;
+                    // Auto-select language based on extension
+                    const ext = file.name.split('.').pop().toLowerCase();
+                    const langSelect = document.getElementById('languageSelect');
+                    if (ext === 'java') langSelect.value = 'Java';
+                    else if (ext === 'py') langSelect.value = 'Python';
+                    else if (ext === 'cpp') langSelect.value = 'C++';
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        async function evaluateCode() {
+            const code = document.getElementById('codeTextarea').value.trim();
+            const language = document.getElementById('languageSelect').value;
+            const btn = document.getElementById('evaluateBtn');
+
+            if (!code) {
+                alert('Please enter some code.');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Evaluating...';
+
+            try {
+                const response = await fetch('/evaluate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ code, language })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.success === false) {
+                        document.getElementById('errorMsg').textContent = data.error;
+                        document.getElementById('results').style.display = 'none';
+                        document.getElementById('error').style.display = 'block';
+                    } else {
+                        displayResults(data);
+                        document.getElementById('results').style.display = 'block';
+                        document.getElementById('error').style.display = 'none';
+                    }
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Network error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Evaluate Code';
+            }
+        }
+
+        function displayResults(data) {
+            document.getElementById('overallScore').textContent = data.overallScore;
+            document.getElementById('readability').textContent = `Readability: ${data.metrics.readability}`;
+            document.getElementById('timeEfficiency').textContent = `Time Efficiency: ${data.metrics.timeEfficiency}`;
+            populateList('strengths', data.strengths);
+            populateList('improvements', data.improvements);
+
+            document.getElementById('results').style.display = 'block';
+        }
+
+        function populateList(id, items) {
+            const ul = document.getElementById(id);
+            ul.innerHTML = '';
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item';
+                li.textContent = item;
+                ul.appendChild(li);
+            });
+        }
+    </script>
+</body>
+</html>
